@@ -1,0 +1,36 @@
+import { createRouter, createWebHistory } from 'vue-router'
+
+import LandingPage from '@/pages/LandingPage.vue'
+import DashboardLayout from '@/components/layout/DashboardLayout.vue'
+import MonitoringDashboard from '@/pages/MonitoringDashboard.vue'
+import MeasurementSetup from '@/pages/MeasurementSetup.vue'
+import RealtimeMeasuring from '@/pages/RealtimeMeasuring.vue'
+import ResultDetection from '@/pages/ResultDetection.vue'
+import DataLog from '@/pages/DataLog.vue'
+import MapView from '@/pages/MapView.vue'
+import Settings from '@/pages/Settings.vue'
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: '/', name: 'landing', component: LandingPage },
+    {
+      path: '/app',
+      component: DashboardLayout,
+      children: [
+        { path: '',          redirect: '/app/dashboard' },
+        { path: 'dashboard', name: 'dashboard', component: MonitoringDashboard },
+        { path: 'measure',   name: 'measure',   component: MeasurementSetup },
+        { path: 'measuring', name: 'measuring', component: RealtimeMeasuring },
+        { path: 'result',    name: 'result',    component: ResultDetection },
+        { path: 'data-log',  name: 'data-log',  component: DataLog },
+        { path: 'map',       name: 'map',       component: MapView },
+        { path: 'settings',  name: 'settings',  component: Settings },
+      ],
+    },
+    { path: '/:pathMatch(.*)*', redirect: '/' },
+  ],
+  scrollBehavior() { return { top: 0 } },
+})
+
+export default router

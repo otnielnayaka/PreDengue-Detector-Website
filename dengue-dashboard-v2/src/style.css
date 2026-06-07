@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface-muted text-ink font-sans;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* Tabular numerals for all scientific data */
+  .num, .font-mono, table tbody td, [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Display headings — Inter with tight tracking & strong weight */
+  h1, h2, h3, h4 {
+    @apply text-ink font-semibold tracking-tighter;
+  }
+}
+
+@layer components {
+  /* --- DISPLAY TYPOGRAPHY (replaces decorative serif) --- */
+  .display-xl {
+    @apply text-4xl font-bold tracking-tightest text-ink;
+    line-height: 1.1;
+  }
+  .display-lg {
+    @apply text-2xl font-semibold tracking-tighter text-ink;
+    line-height: 1.2;
+  }
+  .display-md {
+    @apply text-lg font-semibold tracking-tight text-ink;
+    line-height: 1.3;
+  }
+
+  /* --- EYEBROW LABELS --- */
+  .eyebrow {
+    @apply text-2xs font-semibold uppercase tracking-[0.1em] text-ink-subtle;
+  }
+
+  /* --- METRIC VALUES --- */
+  .metric-value {
+    @apply font-mono text-2xl font-semibold text-ink;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .metric-unit {
+    @apply font-sans text-sm font-normal text-ink-subtle ml-1;
+  }
+
+  /* --- CARDS --- */
+  .lab-card {
+    @apply rounded-xl border border-line bg-white shadow-card;
+  }
+  .lab-card-hover {
+    @apply lab-card transition-shadow hover:shadow-card-hover;
+  }
+
+  /* --- STATUS PILL --- */
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1
+           text-2xs font-semibold uppercase tracking-wider;
+  }
+  .status-pill-dot {
+    @apply h-1.5 w-1.5 rounded-full;
+  }
+
+  /* --- BUTTONS --- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+           text-sm font-medium transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-offset-1;
+  }
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 shadow-sm
+           focus:ring-primary-300;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-ink-muted border border-line
+           hover:bg-surface-muted hover:border-line-strong focus:ring-line-strong;
+  }
+  .btn-ghost {
+    @apply btn text-ink-muted hover:bg-surface-muted focus:ring-line-strong;
+  }
+
+  /* --- FORM --- */
+  .field-label {
+    @apply block text-sm font-medium text-ink-muted mb-1.5;
+  }
+  .field-input {
+    @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm
+           text-ink placeholder:text-ink-faint
+           focus:border-primary-500 focus:ring-2 focus:ring-primary-100 focus:outline-none
+           transition-colors;
+    font-variant-numeric: tabular-nums;
+  }
+  .field-select {
+    @apply field-input pr-9 appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748B' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-size: 1.25rem;
+  }
+
+  /* --- GRID PAPER (chart background) --- */
+  .grid-paper {
+    background-image:
+      linear-gradient(to right, #F1F5F9 1px, transparent 1px),
+      linear-gradient(to bottom, #F1F5F9 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 5px; border: 2px solid #F8FAFC; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }

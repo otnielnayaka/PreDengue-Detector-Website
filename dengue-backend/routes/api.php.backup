@@ -1,0 +1,60 @@
+<?php
+
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\DeviceLogController;
+use App\Http\Controllers\Api\DeviceStatusController;
+use App\Http\Controllers\Api\MeasurementController;
+use App\Http\Controllers\Api\TelemetryController;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\MapController;
+use App\Http\Controllers\Api\LocationController;
+use App\Http\Controllers\Api\StreamController;
+
+
+Route::prefix('v1')->group(function () {
+
+    // ----- Dashboard -----
+    Route::prefix('dashboard')->group(function () {
+        Route::get('summary',          [DashboardController::class, 'summary']);
+        Route::get('positives',        [DashboardController::class, 'positives']);
+        Route::get('status-breakdown', [DashboardController::class, 'statusBreakdown']);
+    });
+    // ----- Measurements -----
+    Route::prefix('measurements')->group(function () {
+
+    // --- Streaming realtime (taruh paling atas, sebelum {measurement}) ---
+        Route::get ('active',        [StreamController::class, 'active']);
+        Route::post('start',         [StreamController::class, 'start']);
+        Route::post('{id}/points',   [StreamController::class, 'points']);
+        Route::post('{id}/finish',   [StreamController::class, 'finish']);
+        Route::get ('{id}/live',     [StreamController::class, 'live']);
+
+    // --- route lama Anda (TETAP, jangan diubah) ---
+        Route::get ('latest',              [MeasurementController::class, 'latest']);
+        Route::get ('/',                   [MeasurementController::class, 'index']);
+        Route::get ('{measurement}',       [MeasurementController::class, 'show']);
+        Route::get ('{measurement}/graph', [MeasurementController::class, 'graph']);
+        Route::post('/',                   [MeasurementController::class, 'store']);
+    });
+    // ----- Devices -----
+    Route::prefix('devices')->group(function () {
+        Route::get('status',         DeviceStatusController::class);
+        Route::get('/',              [DeviceController::class, 'index']);
+        Route::post('/',             [DeviceController::class, 'store']);
+        Route::get('{device}',       [DeviceController::class, 'show']);
+        Route::get('{device}/logs',  [DeviceLogController::class, 'indexForDevice']);
+    });
+    // ----- Telemetry -----
+    Route::prefix('telemetry')->group(function () {
+        Route::get('latest', [TelemetryController::class, 'latest']);
+        Route::post('/',     [TelemetryController::class, 'store']);
+    });
+    // Legacy alias untuk firmware yang sudah deploy
+    Route::post('device-log', [DeviceLogController::class, 'store']);
+    Route::get('/locations', [LocationController::class, 'index']);
+        // --- Map Monitoring (per lokasi sampel) ---
+    Route::get('/map/measurements', [MapController::class, 'measurements']);
+
+
+});

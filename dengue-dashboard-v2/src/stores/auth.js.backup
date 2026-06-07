@@ -1,0 +1,71 @@
+// src/stores/auth.js
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import api from '@/services/api'
+
+export const useAuthStore = defineStore('auth', () => {
+  // State - token & user disimpan di memory + localStorage
+  const token = ref(localStorage.getItem('token') || null)
+  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+
+  // Getters
+  const isLoggedIn = computed(() => !!token.value)
+  const isAdmin = computed(() => user.value?.role === 'admin')
+  const isViewer = computed(() => user.value?.role === 'viewer')
+  const role = computed(() => user.value?.role || null)
+
+  // Set token ke axios header
+  function applyToken() {
+    if (token.value) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+    } else {
+      delete api.defaults.headers.common['Authorization']
+    }
+  }
+  applyToken()  // apply saat store dibuat
+
+  // Actions
+  async function login(email, password) {
+    const res = await api.post('/login', { email, password })
+    token.value = res.data.token
+    user.value = res.data.user
+    localStorage.setItem('token', token.value)
+    localStorage.setItem('user', JSON.stringify(user.value))
+    applyToken()
+    return res.data
+  }
+
+  async function logout() {
+    try {
+      await api.post('/logout')
+    } catch (e) {
+      // abaikan error, tetap clear lokal
+    }
+    clearAuth()
+  }
+
+  function clearAuth() {
+    token.value = null
+    user.value = null
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    applyToken()
+  }
+
+  // Cek token masih valid (panggil saat app start)
+  async function fetchMe() {
+    if (!token.value) return
+    try {
+      const res = await api.get('/me')
+      user.value = res.data
+      localStorage.setItem('user', JSON.stringify(user.value))
+    } catch (e) {
+      clearAuth()   // token invalid → logout
+    }
+  }
+
+  return {
+    token, user, isLoggedIn, isAdmin, isViewer, role,
+    login, logout, clearAuth, fetchMe,
+  }
+})

@@ -1,0 +1,73 @@
+# ============================================================
+# docker-compose.yml — FINAL v2 (cocok + port DB 3307)
+# Project: tugasakhir
+# ============================================================
+services:
+  db:
+    image: mysql:8.0
+    container_name: dengue-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - "3307:3306"                    # port DB asli (untuk akses dari luar/DBeaver)
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - dengue_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./dengue-backend
+      dockerfile: Dockerfile
+    container_name: dengue-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./dengue-backend:/var/www/html
+    networks:
+      - dengue_net
+
+  backend-web:
+    image: nginx:alpine
+    container_name: dengue-backend-web
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    depends_on:
+      - backend
+    volumes:
+      - ./dengue-backend:/var/www/html
+      - ./dengue-backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - dengue_net
+
+  frontend:
+    build:
+      context: ./dengue-dashboard-v2
+      dockerfile: Dockerfile
+    container_name: dengue-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend-web
+    networks:
+      - dengue_net
+
+volumes:
+  db_data:
+
+networks:
+  dengue_net:
+    driver: bridge
