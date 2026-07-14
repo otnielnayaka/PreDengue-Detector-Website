@@ -33,7 +33,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // --- Polling control ---
   let pollTimer = null
 
-  // --- Computed KPIs (defensive: always return numbers, never undefined) ---
+  
   const kpis = computed(() => {
     const s = summary.value || {}
     const m = s.measurements || {}

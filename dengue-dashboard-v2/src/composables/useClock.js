@@ -1,9 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
-/**
- * useClock — reactive realtime clock, updates every second.
- * Cleans up automatically on unmount.
- */
+
 export function useClock() {
   const now = ref(new Date())
   let timer = null

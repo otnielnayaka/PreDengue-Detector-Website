@@ -12,6 +12,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call([
+            UserSeeder::class,
+        ]);
         // ---- Devices ----
         $dev1 = Device::create([
             'device_id'        => 'POT-001',

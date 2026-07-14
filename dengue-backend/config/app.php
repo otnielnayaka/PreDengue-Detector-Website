@@ -123,4 +123,6 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'device_api_key' => env('DEVICE_API_KEY', 'ganti-key-rahasia'),
+
 ];
