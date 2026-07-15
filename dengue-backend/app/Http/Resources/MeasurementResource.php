@@ -24,6 +24,15 @@ class MeasurementResource extends JsonResource
             'delta_tia'        => $this->delta_tia,
             'threshold'        => $this->threshold,
 
+            // Summary khusus CV — null untuk DPV/SWV, tidak pernah dikarang.
+            'anodic_peak_current'   => $this->anodic_peak_current,
+            'cathodic_peak_current' => $this->cathodic_peak_current,
+            'anodic_peak_voltage'   => $this->anodic_peak_voltage,
+            'cathodic_peak_voltage' => $this->cathodic_peak_voltage,
+            'max_current'           => $this->max_current,
+            'min_current'           => $this->min_current,
+            'max_abs_current'       => $this->max_abs_current,
+
             'scan' => [
                 'start_voltage'   => $this->start_voltage,
                 'end_voltage'     => $this->end_voltage,
@@ -31,6 +40,10 @@ class MeasurementResource extends JsonResource
                 'scan_rate'       => $this->scan_rate,
                 'pulse_amplitude' => $this->pulse_amplitude,
                 'duration_seconds'=> $this->duration_seconds,
+                // Khusus CV — null untuk DPV/SWV.
+                'cycles'            => $this->cycles,
+                'quiet_time'        => $this->quiet_time,
+                'sensitivity_range' => $this->sensitivity_range,
             ],
 
             'device'   => new DeviceResource($this->whenLoaded('device')),

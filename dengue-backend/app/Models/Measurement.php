@@ -28,6 +28,18 @@ class Measurement extends Model
         'pulse_amplitude',
         'duration_seconds',
         'status',
+        // --- Parameter & summary khusus CV (nullable, lihat migration
+        // add_cv_fields_to_measurements_table) ---
+        'cycles',
+        'quiet_time',
+        'sensitivity_range',
+        'anodic_peak_current',
+        'cathodic_peak_current',
+        'anodic_peak_voltage',
+        'cathodic_peak_voltage',
+        'max_current',
+        'min_current',
+        'max_abs_current',
     ];
 
     protected function casts(): array
@@ -43,6 +55,15 @@ class Measurement extends Model
             'scan_rate'        => 'decimal:4',
             'pulse_amplitude'  => 'decimal:4',
             'duration_seconds' => 'integer',
+            'cycles'                 => 'integer',
+            'quiet_time'              => 'decimal:4',
+            'anodic_peak_current'     => 'decimal:6',
+            'cathodic_peak_current'   => 'decimal:6',
+            'anodic_peak_voltage'     => 'decimal:4',
+            'cathodic_peak_voltage'   => 'decimal:4',
+            'max_current'             => 'decimal:6',
+            'min_current'             => 'decimal:6',
+            'max_abs_current'         => 'decimal:6',
         ];
     }
 

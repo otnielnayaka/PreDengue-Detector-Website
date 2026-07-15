@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Measurement;
 use App\Models\VoltammetryPoint;
+use App\Support\PointsNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +32,9 @@ class StreamController extends Controller
             'device_id'    => ['required', 'string'],
             'sample_id'    => ['nullable', 'string'],
             'location_id'  => ['nullable', 'integer', 'exists:locations,id'],
-            'method'       => ['nullable', 'string'],
+            // Method aktif untuk pengukuran BARU: DPV & CV saja. SWV historis
+            // tetap terbaca di endpoint read (index/show/graph), tidak di sini.
+            'method'       => ['nullable', 'string', 'in:DPV,CV'],
             'threshold'    => ['nullable', 'numeric'],
         ]);
 
@@ -61,12 +64,23 @@ class StreamController extends Controller
     {
         $m = Measurement::findOrFail($id);
 
+        // Terima variasi nama field dari firmware (potential/voltage_v,
+        // current_ua/current_a, index, cycle, direction/sweep_direction,
+        // time/timestamp_ms) -> bentuk internal konsisten sebelum divalidasi.
+        $raw = $request->input('points', []);
+        $normalized = is_array($raw) ? PointsNormalizer::normalize($raw) : $raw;
+        $request->merge(['points' => $normalized]);
+
         $data = $request->validate([
-            'points'                => ['required', 'array', 'min:1'],
-            'points.*.sequence_number' => ['required', 'integer'],
-            'points.*.voltage'      => ['required', 'numeric'],
-            'points.*.current'      => ['required', 'numeric'],
-            'progress'              => ['nullable', 'integer', 'min:0', 'max:100'],
+            'points'                    => ['required', 'array', 'min:1'],
+            'points.*.sequence_number'  => ['required', 'integer'],
+            'points.*.voltage'          => ['required', 'numeric'],
+            'points.*.current'          => ['required', 'numeric'],
+            // Khusus CV — opsional, null untuk DPV/SWV seperti sebelumnya.
+            'points.*.cycle'            => ['nullable', 'integer', 'min:1'],
+            'points.*.direction'        => ['nullable', 'string', 'in:forward,reverse'],
+            'points.*.time_seconds'     => ['nullable', 'numeric'],
+            'progress'                  => ['nullable', 'integer', 'min:0', 'max:100'],
         ]);
 
         $rows = array_map(fn ($p) => [
@@ -74,6 +88,9 @@ class StreamController extends Controller
             'sequence_number' => $p['sequence_number'],
             'voltage'         => $p['voltage'],
             'current'         => $p['current'],
+            'cycle'           => $p['cycle'] ?? null,
+            'direction'       => $p['direction'] ?? null,
+            'time_seconds'    => $p['time_seconds'] ?? null,
             'created_at'      => now(),
             'updated_at'      => now(),
         ], $data['points']);
@@ -97,18 +114,62 @@ class StreamController extends Controller
     public function finish(Request $request, int $id): JsonResponse
     {
         $m = Measurement::findOrFail($id);
+        $isCv = $m->method === 'CV';
+
+        // `vertex_voltage` adalah alias CV untuk `end_voltage` (di frontend
+        // field yang sama dilabeli "Vertex Voltage" saat method = CV).
+        if ($request->has('vertex_voltage') && !$request->has('end_voltage')) {
+            $request->merge(['end_voltage' => $request->input('vertex_voltage')]);
+        }
 
         $data = $request->validate([
-            'peak_current'    => ['required', 'numeric'],
-            'peak_voltage'    => ['required', 'numeric'],
-            'status'          => ['required', 'string'], // positive|negative|warning|inconclusive
-            'start_voltage'   => ['nullable', 'numeric'],
-            'end_voltage'     => ['nullable', 'numeric'],
-            'step_voltage'    => ['nullable', 'numeric'],
-            'scan_rate'       => ['nullable', 'numeric'],
-            'pulse_amplitude' => ['nullable', 'numeric'],
-            'duration_seconds'=> ['nullable', 'integer'],
+            // DPV: peak_current/peak_voltage wajib seperti sebelumnya (tidak
+            // berubah, supaya tidak ada regresi). CV: opsional — kalau tidak
+            // dikirim alat, dihitung dari points di bawah (bukan dikarang).
+            'peak_current'      => [$isCv ? 'nullable' : 'required', 'numeric'],
+            'peak_voltage'      => [$isCv ? 'nullable' : 'required', 'numeric'],
+            'status'            => ['required', 'string'], // positive|negative|warning|inconclusive
+            'start_voltage'     => ['nullable', 'numeric'],
+            'end_voltage'       => ['nullable', 'numeric'],
+            'step_voltage'      => ['nullable', 'numeric'],
+            'scan_rate'         => ['nullable', 'numeric'],
+            'pulse_amplitude'   => ['nullable', 'numeric'],
+            'duration_seconds'  => ['nullable', 'integer'],
+            // Khusus CV — tidak wajib untuk DPV (tidak menyentuh field DPV).
+            'cycles'            => ['nullable', 'integer', 'min:1'],
+            'quiet_time'        => ['nullable', 'numeric'],
+            'sensitivity_range' => ['nullable', 'string', 'max:32'],
+            // Summary CV, kalau alat sudah menghitungnya sendiri (kalau tidak,
+            // max/min/max_abs_current dihitung dari points di bawah).
+            'anodic_peak_current'   => ['nullable', 'numeric'],
+            'cathodic_peak_current' => ['nullable', 'numeric'],
+            'anodic_peak_voltage'   => ['nullable', 'numeric'],
+            'cathodic_peak_voltage' => ['nullable', 'numeric'],
+            'max_current'           => ['nullable', 'numeric'],
+            'min_current'           => ['nullable', 'numeric'],
+            'max_abs_current'       => ['nullable', 'numeric'],
         ]);
+
+        if ($isCv) {
+            // CV: max/min/max_abs current dihitung langsung dari titik yang
+            // sudah tersimpan (agregat sederhana & aman, bukan deteksi peak
+            // yang butuh asumsi domain) — hanya kalau alat belum mengirimnya.
+            $currents = VoltammetryPoint::where('measurement_id', $m->id)->pluck('current');
+            if ($currents->isNotEmpty()) {
+                $max = (float) $currents->max();
+                $min = (float) $currents->min();
+                $data['max_current']     = $data['max_current']     ?? $max;
+                $data['min_current']     = $data['min_current']     ?? $min;
+                $data['max_abs_current'] = $data['max_abs_current'] ?? max(abs($max), abs($min));
+            }
+            // DPV punya konsep "peak_current" tunggal dari alat; CV belum
+            // tentu. Supaya layar lama (Dashboard/Map) yang masih membaca
+            // `peak_current` tetap punya angka yang masuk akal, fallback ke
+            // max_abs_current — bukan status/diagnosis, murni nilai terukur.
+            if (!isset($data['peak_current']) && isset($data['max_abs_current'])) {
+                $data['peak_current'] = $data['max_abs_current'];
+            }
+        }
 
         $m->fill($data);
         $m->scan_status = 'finished';

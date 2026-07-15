@@ -34,6 +34,11 @@ const props = defineProps({
   height:       { type: Number,  default: 360 },
   live:         { type: Boolean, default: false },
   showPeak:     { type: Boolean, default: true },
+  // 'DPV' (default) mempertahankan tampilan lama persis. 'CV' mematikan
+  // markPoint "PEAK" tunggal & garis threshold — keduanya konsep DPV
+  // (satu peak vs. threshold pass/fail) yang tidak berlaku untuk kurva
+  // loop CV — dan menambah cycle/direction/time di tooltip kalau tersedia.
+  method:       { type: String,  default: 'DPV' },
 })
 
 const chartEl = ref(null)
@@ -62,6 +67,8 @@ const hasPoints = computed(() =>
   Array.isArray(props.points) && props.points.length > 0
 )
 
+const isCv = computed(() => props.method === 'CV')
+
 function toChartData(points) {
   if (!Array.isArray(points)) return []
   return points
@@ -70,7 +77,15 @@ function toChartData(points) {
       const v = p.v ?? p.voltage ?? p.x
       const i = p.i ?? p.current ?? p.y
       if (v == null || i == null || isNaN(v) || isNaN(i)) return null
-      return [Number(v), Number(i)]
+      // Array TIDAK di-sort — urutan input = urutan akuisisi. Untuk CV ini
+      // penting supaya sapuan maju/balik (yang bisa berbagi voltage sama)
+      // tetap membentuk loop yang benar, bukan garis lurus hasil sorting.
+      const item = { value: [Number(v), Number(i)] }
+      if (p.cycle != null) item.cycle = p.cycle
+      if (p.direction != null) item.direction = p.direction
+      const t = p.t ?? p.time
+      if (t != null) item.time = Number(t)
+      return item
     })
     .filter(Boolean)
 }
@@ -79,13 +94,16 @@ function findPeak(data) {
   if (!data.length) return null
   let maxIdx = 0
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] > data[maxIdx][1]) maxIdx = i
+    if (data[i].value[1] > data[maxIdx].value[1]) maxIdx = i
   }
   return data[maxIdx]
 }
 
 function buildOption(data) {
-  const peak = props.showPeak ? findPeak(data) : null
+  // DPV: markPoint "PEAK" tunggal seperti sebelumnya. CV: kurva bisa punya
+  // beberapa naik-turun (loop) — highlight satu titik tertinggi menyesatkan,
+  // jadi dimatikan untuk CV.
+  const peak = props.showPeak && !isCv.value ? findPeak(data) : null
 
   return {
     animation: !props.live,         // disable animation in live mode for smoothness
@@ -104,10 +122,17 @@ function buildOption(data) {
         if (!params || !params.length) return ''
         const p = params[0]
         if (!p.value) return ''
+        const extra = p.data || {}
+        const extraRows = [
+          extra.time != null ? `<div><span style="color:#64748B">t</span> ${extra.time.toFixed(2)} s</div>` : '',
+          extra.cycle != null ? `<div><span style="color:#64748B">Cycle</span> ${extra.cycle}</div>` : '',
+          extra.direction != null ? `<div><span style="color:#64748B">Dir</span> ${extra.direction}</div>` : '',
+        ].join('')
         return `<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">
           <div style="color:#64748B; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.08em; font-family:Inter; font-size:10px;">Point ${p.dataIndex}</div>
           <div><span style="color:#64748B">V</span> ${Number(p.value[0]).toFixed(4)} V</div>
           <div><span style="color:#64748B">I</span> ${Number(p.value[1]).toFixed(4)} µA</div>
+          ${extraRows}
         </div>`
       },
       axisPointer: {
@@ -170,9 +195,12 @@ function buildOption(data) {
             color: '#FFFFFF', fontFamily: 'JetBrains Mono', fontSize: 9,
             fontWeight: 600, formatter: 'PEAK',
           },
-          data: [{ coord: peak }],
+          data: [{ coord: peak.value }],
         } : undefined,
-        markLine: props.threshold !== null && !isNaN(props.threshold) ? {
+        // Threshold DPV = garis pass/fail tervalidasi. CV belum punya
+        // threshold yang sama artinya (lihat aturan diagnosis di
+        // ResultDetection.vue) — jangan tampilkan supaya tidak menyesatkan.
+        markLine: props.threshold !== null && !isNaN(props.threshold) && !isCv.value ? {
           silent: true, symbol: 'none',
           lineStyle: { color: '#94A3B8', type: 'dashed', width: 1 },
           label: {

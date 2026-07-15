@@ -36,6 +36,10 @@ onMounted(async () => {
   }
 })
 
+// Metode yang tersedia untuk pengukuran BARU. SWV historis tetap dapat
+// dibaca di Data Log/Result, tapi tidak lagi ditawarkan di sini.
+const SUPPORTED_METHODS = ['DPV', 'CV']
+
 const form = ref({
   method: 'DPV',
   sample_id: `NS1-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`,
@@ -44,21 +48,40 @@ const form = ref({
   step_voltage: 0.005,
   scan_rate: 0.05,
   pulse_amplitude: 0.025,
+  cycles: 1,
 })
+
+// Guard: kalau state method lama pernah berisi SWV, jatuhkan ke default DPV.
+if (!SUPPORTED_METHODS.includes(form.value.method)) {
+  form.value.method = 'DPV'
+}
 
 const methods = [
   { id: 'DPV', name: 'Differential Pulse', desc: 'High sensitivity for trace antigen detection' },
   { id: 'CV',  name: 'Cyclic Voltammetry', desc: 'Survey scan for redox characterization' },
-  { id: 'SWV', name: 'Square Wave',        desc: 'Fast scan with low background current' },
 ]
 
+const isCv = computed(() => form.value.method === 'CV')
+
+// DPV: satu arah sapuan start -> end.
+// CV: tiap cycle menyapu start -> vertex(end) -> start (dua arah), diulang `cycles` kali.
 const dataPoints = computed(() => {
   const span = Math.abs(form.value.end_voltage - form.value.start_voltage)
+  if (!form.value.step_voltage) return 0
+  if (isCv.value) {
+    const cycles = Math.max(1, Number(form.value.cycles) || 1)
+    return Math.round((span * 2 / form.value.step_voltage) * cycles)
+  }
   return Math.round(span / form.value.step_voltage)
 })
 
 const estimatedDuration = computed(() => {
   const span = Math.abs(form.value.end_voltage - form.value.start_voltage)
+  if (!form.value.scan_rate) return 0
+  if (isCv.value) {
+    const cycles = Math.max(1, Number(form.value.cycles) || 1)
+    return Math.round((span * 2 / form.value.scan_rate) * cycles)
+  }
   return Math.round(span / form.value.scan_rate)
 })
 
@@ -79,7 +102,7 @@ function runScan() {
             <h2 class="display-md mt-1">Voltammetry Technique</h2>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <button v-for="m in methods" :key="m.id" type="button"
                     @click="form.method = m.id"
                     class="text-left p-4 rounded-lg border-2 transition-all hover:shadow-card"
@@ -119,7 +142,7 @@ function runScan() {
               <input v-model.number="form.start_voltage" type="number" step="0.001" class="field-input" />
             </div>
             <div>
-              <label class="field-label flex items-center justify-between">End Voltage <span class="font-mono text-2xs text-ink-faint">V</span></label>
+              <label class="field-label flex items-center justify-between">{{ isCv ? 'Vertex Voltage' : 'End Voltage' }} <span class="font-mono text-2xs text-ink-faint">V</span></label>
               <input v-model.number="form.end_voltage" type="number" step="0.001" class="field-input" />
             </div>
             <div>
@@ -130,7 +153,11 @@ function runScan() {
               <label class="field-label flex items-center justify-between">Scan Rate <span class="font-mono text-2xs text-ink-faint">V/s</span></label>
               <input v-model.number="form.scan_rate" type="number" step="0.001" class="field-input" />
             </div>
-            <div class="md:col-span-2">
+            <div v-if="isCv">
+              <label class="field-label flex items-center justify-between">Cycles <span class="font-mono text-2xs text-ink-faint">#</span></label>
+              <input v-model.number="form.cycles" type="number" step="1" min="1" class="field-input" />
+            </div>
+            <div v-if="!isCv" class="md:col-span-2">
               <label class="field-label flex items-center justify-between">Pulse Amplitude <span class="font-mono text-2xs text-ink-faint">V</span></label>
               <input v-model.number="form.pulse_amplitude" type="number" step="0.001" class="field-input" />
             </div>

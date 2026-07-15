@@ -15,6 +15,11 @@ class VoltammetryPoint extends Model
         'sequence_number',
         'voltage',
         'current',
+        // --- Metadata opsional untuk CV (nullable, lihat migration
+        // add_cv_fields_to_voltammetry_points_table). DPV/SWV lama tetap null. ---
+        'cycle',
+        'direction',
+        'time_seconds',
     ];
 
     protected function casts(): array
@@ -23,6 +28,8 @@ class VoltammetryPoint extends Model
             'sequence_number' => 'integer',
             'voltage'         => 'decimal:4',
             'current'         => 'decimal:6',
+            'cycle'           => 'integer',
+            'time_seconds'    => 'decimal:4',
         ];
     }
 

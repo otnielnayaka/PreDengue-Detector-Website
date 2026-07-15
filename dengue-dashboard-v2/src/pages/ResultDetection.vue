@@ -1,24 +1,47 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import {
   AlertCircle, CheckCircle2, Download, CloudUpload, Printer, ArrowLeft,
-  Calendar, Tag, MapPin, Cpu, Activity,
+  Tag, MapPin, Cpu, Activity,
 } from 'lucide-vue-next'
 
 import VoltammogramChart from '@/components/charts/VoltammogramChart.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 
-import { useMeasurementStore } from '@/stores/measurement'
+import { useMeasurementStore, peakCurrentDisplay } from '@/stores/measurement'
 
+const route = useRoute()
 const measurementStore = useMeasurementStore()
-const { latest, voltammogramPoints } = storeToRefs(measurementStore)
+const {
+  latest, voltammogramPoints,
+  selected, selectedPoints, selectedLoading, selectedError, selectedNotFound,
+} = storeToRefs(measurementStore)
 
-const isPositive = computed(() => latest.value?.status === 'positive')
+// Dibuka dengan /app/result/:resultId -> tampilkan record spesifik itu.
+// Dibuka tanpa ID (/app/result) -> perilaku lama: measurement terbaru
+// (sudah di-polling terus-menerus oleh DashboardLayout).
+const resultId = computed(() => route.params.resultId || null)
+const activeMeasurement = computed(() => (resultId.value ? selected.value : latest.value))
+const activePoints = computed(() => (resultId.value ? selectedPoints.value : voltammogramPoints.value))
+
+function loadById(id) {
+  if (id) measurementStore.fetchById(id)
+}
+onMounted(() => loadById(resultId.value))
+watch(resultId, (id) => loadById(id))
+
+const isPositive = computed(() => activeMeasurement.value?.status === 'positive')
+const isCvMethod = computed(() => activeMeasurement.value?.method === 'CV')
+
+// Field yang belum tersedia (null) ditampilkan "—" — tidak pernah dikarang.
+function fmt(value, decimals = 3) {
+  return value != null && !Number.isNaN(value) ? Number(value).toFixed(decimals) : '—'
+}
 
 const result = computed(() => {
-  const m = latest.value
+  const m = activeMeasurement.value
   if (!m) return null
   const delta = m.peak_current - m.threshold
   return {
@@ -36,6 +59,17 @@ const result = computed(() => {
     device: m.device?.device_id ?? '—',
     location: m.location ? `${m.location.kecamatan} / ${m.location.desa ?? '—'}` : '—',
     delta: (delta >= 0 ? '+' : '') + delta.toFixed(3) + ' µA',
+    // --- Ditampilkan hanya kalau method = CV (lihat kartu "CV Scan Parameters") ---
+    cvPeakCurrent: fmt(peakCurrentDisplay(m)),
+    cvStartVoltage: fmt(m.start_voltage, 4),
+    cvVertexVoltage: fmt(m.end_voltage, 4),
+    cvStepVoltage: fmt(m.step_voltage, 4),
+    cvScanRate: fmt(m.scan_rate, 4),
+    cvCycles: m.cycles != null ? String(m.cycles) : '—',
+    cvAnodicPeakCurrent: fmt(m.anodic_peak_current),
+    cvCathodicPeakCurrent: fmt(m.cathodic_peak_current),
+    cvAnodicPeakVoltage: fmt(m.anodic_peak_voltage, 4),
+    cvCathodicPeakVoltage: fmt(m.cathodic_peak_voltage, 4),
   }
 })
 
@@ -50,7 +84,33 @@ const formattedTime = computed(() => {
 
 <template>
   <div class="space-y-6">
-    <div v-if="!result" class="lab-card p-12 text-center">
+    <!-- Loading: fetch record spesifik berdasarkan ID -->
+    <div v-if="resultId && selectedLoading" class="lab-card p-12 text-center">
+      <Activity class="h-10 w-10 text-ink-faint mx-auto mb-3 animate-pulse-soft" :stroke-width="1.5" />
+      <p class="display-md text-ink-muted">Memuat hasil…</p>
+      <p class="text-sm text-ink-subtle mt-1">Mengambil detail measurement.</p>
+    </div>
+
+    <!-- Not found: ID tidak ditemukan di backend -->
+    <div v-else-if="resultId && selectedNotFound" class="lab-card p-12 text-center">
+      <AlertCircle class="h-10 w-10 text-ink-faint mx-auto mb-3" :stroke-width="1.5" />
+      <p class="display-md text-ink-muted">Hasil tidak ditemukan</p>
+      <p class="text-sm text-ink-subtle mt-1">Measurement dengan ID ini tidak ada atau sudah dihapus.</p>
+      <RouterLink to="/app/data-log" class="inline-flex items-center gap-2 text-sm text-primary-600 hover:text-primary-700 mt-4">
+        <ArrowLeft class="h-3.5 w-3.5" :stroke-width="2" />Kembali ke Data Log
+      </RouterLink>
+    </div>
+
+    <!-- Error: request gagal (jaringan/server) -->
+    <div v-else-if="resultId && selectedError" class="lab-card p-12 text-center">
+      <AlertCircle class="h-10 w-10 text-primary-600 mx-auto mb-3" :stroke-width="1.5" />
+      <p class="display-md text-ink-muted">Gagal memuat hasil</p>
+      <p class="text-sm text-ink-subtle mt-1">{{ selectedError.message || 'Terjadi kesalahan saat mengambil data.' }}</p>
+      <button @click="loadById(resultId)" class="btn-secondary text-sm mt-4">Coba lagi</button>
+    </div>
+
+    <!-- Empty: tidak ada ID dan belum ada measurement terbaru sama sekali -->
+    <div v-else-if="!result" class="lab-card p-12 text-center">
       <Activity class="h-10 w-10 text-ink-faint mx-auto mb-3" :stroke-width="1.5" />
       <p class="display-md text-ink-muted">Belum ada hasil scan</p>
       <p class="text-sm text-ink-subtle mt-1">Hasil akan muncul setelah scan pertama.</p>
@@ -106,12 +166,13 @@ const formattedTime = computed(() => {
             <p class="eyebrow mb-4">Measurement Metrics</p>
             <dl class="space-y-4">
               <div>
-                <dt class="text-xs text-ink-subtle">Peak Current</dt>
+                <dt class="text-xs text-ink-subtle">{{ isCvMethod ? 'Peak / Max Abs Current' : 'Peak Current' }}</dt>
                 <dd class="font-mono text-2xl font-semibold text-ink mt-0.5">
-                  {{ result.peakCurrent.toFixed(3) }}<span class="text-sm text-ink-faint ml-1">µA</span>
+                  {{ isCvMethod ? result.cvPeakCurrent : result.peakCurrent.toFixed(3) }}<span class="text-sm text-ink-faint ml-1">µA</span>
                 </dd>
               </div>
-              <div class="border-t border-line pt-4">
+              <!-- Peak Potential khusus DPV — CV belum tentu punya satu "peak potential" -->
+              <div v-if="!isCvMethod" class="border-t border-line pt-4">
                 <dt class="text-xs text-ink-subtle">Peak Potential</dt>
                 <dd class="font-mono text-2xl font-semibold text-ink mt-0.5">
                   {{ result.peakVoltage.toFixed(4) }}<span class="text-sm text-ink-faint ml-1">V</span>
@@ -122,6 +183,50 @@ const formattedTime = computed(() => {
                 <dd class="font-mono text-2xl font-semibold text-ink mt-0.5">
                   {{ result.threshold.toFixed(4) }}<span class="text-sm text-ink-faint ml-1">µA</span>
                 </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- Scan parameters CV — hanya tampil untuk method CV. DPV tidak
+               disentuh sama sekali (kartu di atas & di bawah tetap seperti semula). -->
+          <div v-if="isCvMethod" class="lab-card p-6">
+            <p class="eyebrow mb-4">CV Scan Parameters</p>
+            <dl class="space-y-3 text-sm">
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Start Voltage</dt>
+                <dd class="font-mono text-ink">{{ result.cvStartVoltage }} V</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Vertex Voltage</dt>
+                <dd class="font-mono text-ink">{{ result.cvVertexVoltage }} V</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Step Voltage</dt>
+                <dd class="font-mono text-ink">{{ result.cvStepVoltage }} V</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Scan Rate</dt>
+                <dd class="font-mono text-ink">{{ result.cvScanRate }} V/s</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Cycles</dt>
+                <dd class="font-mono text-ink">{{ result.cvCycles }}</dd>
+              </div>
+              <div class="flex items-center justify-between border-t border-line pt-3 mt-3">
+                <dt class="text-ink-subtle">Anodic Peak Current</dt>
+                <dd class="font-mono text-ink">{{ result.cvAnodicPeakCurrent }} µA</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Cathodic Peak Current</dt>
+                <dd class="font-mono text-ink">{{ result.cvCathodicPeakCurrent }} µA</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Anodic Peak Voltage</dt>
+                <dd class="font-mono text-ink">{{ result.cvAnodicPeakVoltage }} V</dd>
+              </div>
+              <div class="flex items-center justify-between">
+                <dt class="text-ink-subtle">Cathodic Peak Voltage</dt>
+                <dd class="font-mono text-ink">{{ result.cvCathodicPeakVoltage }} V</dd>
               </div>
             </dl>
           </div>
@@ -156,7 +261,7 @@ const formattedTime = computed(() => {
         <div class="xl:col-span-2 lab-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-line">
             <div>
-              <p class="eyebrow">Voltammogram</p>
+              <p class="eyebrow">{{ isCvMethod ? 'Cyclic Voltammogram' : 'Voltammogram' }}</p>
               <p class="display-md mt-0.5">{{ result.sampleId }}</p>
             </div>
             <StatusBadge :status="result.status" dot>
@@ -165,7 +270,7 @@ const formattedTime = computed(() => {
           </div>
 
           <div class="p-5 grid-paper">
-            <VoltammogramChart :points="voltammogramPoints" :height="420"
+            <VoltammogramChart :points="activePoints" :height="420" :method="result.method"
                                :threshold="result.threshold" :result-status="result.status" />
           </div>
         </div>

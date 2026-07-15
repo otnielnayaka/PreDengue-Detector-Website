@@ -1,17 +1,31 @@
 <script setup>
-import { watch, computed } from 'vue'
+import { watch, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
 import {
   Search, Download, CloudUpload, Trash2, Eye, ChevronLeft, ChevronRight,
   MapPin, X, RefreshCw,
 } from 'lucide-vue-next'
 
 import StatusBadge from '@/components/ui/StatusBadge.vue'
-import { useMeasurementStore } from '@/stores/measurement'
+import { useMeasurementStore, peakCurrentDisplay as peakCurrentValue } from '@/stores/measurement'
 
+const router = useRouter()
 const store = useMeasurementStore()
 const { list, listTotal, listPage, listPerPage, listLoading, filters } = storeToRefs(store)
+
+// Metode yang boleh muncul di filter untuk pengukuran baru. SWV historis
+// tetap tersimpan di data, tapi tidak lagi ditawarkan sebagai opsi filter.
+const FILTERABLE_METHODS = ['all', 'DPV', 'CV']
+
+// Guard: kalau filter method lama/tersimpan berisi SWV (atau value lain
+// yang sudah tidak tersedia di dropdown), jatuhkan ke "All methods" agar
+// dropdown tidak error dan tabel tidak diam-diam kosong.
+onMounted(() => {
+  if (!FILTERABLE_METHODS.includes(filters.value.method)) {
+    store.setFilters({ method: 'all' })
+  }
+})
 
 // Debounce search
 let searchDebounce = null
@@ -23,6 +37,17 @@ watch(() => filters.value.search, () => {
 watch([() => filters.value.status, () => filters.value.method], () => {
   store.setFilters({})
 })
+
+function openResult(id) {
+  router.push(`/app/result/${id}`)
+}
+
+// Logic prioritas DPV/CV ada di stores/measurement.js (dipakai bareng
+// dengan halaman Result supaya nilai yang ditampilkan konsisten).
+function peakCurrentDisplay(m) {
+  const value = peakCurrentValue(m)
+  return value != null ? value.toFixed(3) : null
+}
 
 const hasActiveFilters = computed(() =>
   filters.value.search || filters.value.status !== 'all' || filters.value.method !== 'all'
@@ -83,7 +108,6 @@ function exportCsv() {
           <option value="all">All methods</option>
           <option value="DPV">DPV</option>
           <option value="CV">CV</option>
-          <option value="SWV">SWV</option>
         </select>
 
         <button v-if="hasActiveFilters" @click="store.clearFilters()" class="btn-ghost text-sm py-2">
@@ -124,7 +148,11 @@ function exportCsv() {
           </thead>
           <tbody>
             <tr v-for="m in list" :key="m.id"
-                class="border-t border-line hover:bg-surface-muted/60 transition-colors group">
+                class="border-t border-line hover:bg-surface-muted/60 transition-colors group cursor-pointer"
+                tabindex="0" role="button" :aria-label="`Open result for sample ${m.sample_id}`"
+                @click="openResult(m.id)"
+                @keydown.enter="openResult(m.id)"
+                @keydown.space.prevent="openResult(m.id)">
               <td class="px-5 py-3.5 text-ink-muted">{{ formatDate(m.created_at) }}</td>
               <td class="px-5 py-3.5 font-mono text-xs text-ink-subtle">{{ formatTime(m.created_at) }}</td>
               <td class="px-5 py-3.5 font-mono text-xs text-ink">{{ m.sample_id }}</td>
@@ -132,7 +160,8 @@ function exportCsv() {
                 <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted">{{ m.method }}</span>
               </td>
               <td class="px-5 py-3.5 font-mono text-xs text-ink">
-                {{ m.peak_current.toFixed(3) }} <span class="text-ink-faint ml-0.5">µA</span>
+                <template v-if="peakCurrentDisplay(m) !== null">{{ peakCurrentDisplay(m) }} <span class="text-ink-faint ml-0.5">µA</span></template>
+                <span v-else class="text-ink-faint">—</span>
               </td>
               <td class="px-5 py-3.5 text-ink-muted text-xs">
                 <span v-if="m.location" class="inline-flex items-center gap-1">
@@ -147,10 +176,10 @@ function exportCsv() {
               </td>
               <td class="px-5 py-3.5 text-right">
                 <div class="inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <RouterLink to="/app/result" class="p-1.5 rounded-md hover:bg-surface-muted text-ink-muted hover:text-ink">
+                  <button @click.stop="openResult(m.id)" class="p-1.5 rounded-md hover:bg-surface-muted text-ink-muted hover:text-ink">
                     <Eye class="h-3.5 w-3.5" :stroke-width="1.75" />
-                  </RouterLink>
-                  <button class="p-1.5 rounded-md hover:bg-primary-50 text-ink-muted hover:text-primary-600">
+                  </button>
+                  <button @click.stop class="p-1.5 rounded-md hover:bg-primary-50 text-ink-muted hover:text-primary-600">
                     <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
                   </button>
                 </div>

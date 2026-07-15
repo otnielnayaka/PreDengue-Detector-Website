@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
-  Wifi, Clock, Sun, Beaker, Target, Tag, Cpu, ChevronRight,
+  Wifi, Clock, Beaker, Target, Tag, Cpu, ChevronRight,
   Check, AlertCircle,
 } from 'lucide-vue-next'
 
@@ -12,6 +12,12 @@ import { useClock } from '@/composables/useClock'
 const telemetryStore = useTelemetryStore()
 const { telemetry, wifiStatus } = storeToRefs(telemetryStore)
 const { now } = useClock()
+
+// Sumber tunggal untuk info hardware/firmware — dipakai di daftar settings
+// kiri (item "Firmware Version") dan panel "Device Information" kanan,
+// supaya keduanya selalu konsisten.
+const HARDWARE_LABEL = 'Airlift ESP 32'
+const FIRMWARE_VERSION = '1'
 
 const settings = computed(() => [
   {
@@ -29,10 +35,6 @@ const settings = computed(() => [
     meta: 'WIB · synced via NTP', status: 'good',
   },
   {
-    icon: Sun, label: 'Display Brightness', desc: 'Tingkat kecerahan layar TFT',
-    value: '85%', meta: 'Auto-dim enabled', status: 'good',
-  },
-  {
     icon: Beaker, label: 'Calibration', desc: 'TIA gain dan DAC reference',
     value: 'Calibrated', meta: 'Last: 12 May 2026', status: 'good',
   },
@@ -46,7 +48,7 @@ const settings = computed(() => [
   },
   {
     icon: Cpu, label: 'Firmware Version', desc: 'Versi firmware di Feather M4',
-    value: 'v0.9.3', meta: 'Up to date', status: 'good',
+    value: FIRMWARE_VERSION, meta: 'Up to date', status: 'good',
   },
 ])
 
@@ -100,10 +102,10 @@ const statusStyles = {
           </div>
         </div>
         <dl class="space-y-3 text-sm">
-          <div class="flex justify-between"><dt class="text-ink-subtle">Hardware</dt><dd class="font-mono text-ink">SAMD51 / ESP32</dd></div>
+          <div class="flex justify-between"><dt class="text-ink-subtle">Hardware</dt><dd class="font-mono text-ink">{{ HARDWARE_LABEL }}</dd></div>
           <div class="flex justify-between"><dt class="text-ink-subtle">Front-end</dt><dd class="font-mono text-ink">Radiustat</dd></div>
           <div class="flex justify-between"><dt class="text-ink-subtle">Electrode</dt><dd class="font-mono text-ink">SPCE-Au</dd></div>
-          <div class="flex justify-between"><dt class="text-ink-subtle">Firmware</dt><dd class="font-mono text-ink">v0.9.3</dd></div>
+          <div class="flex justify-between"><dt class="text-ink-subtle">Firmware</dt><dd class="font-mono text-ink">{{ FIRMWARE_VERSION }}</dd></div>
           <div class="flex justify-between border-t border-line pt-3">
             <dt class="text-ink-subtle">Status</dt>
             <dd class="font-mono" :class="telemetryStore.isOnline ? 'text-emerald-600' : 'text-ink-faint'">

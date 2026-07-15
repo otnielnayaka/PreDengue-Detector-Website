@@ -149,6 +149,7 @@ const todayBarSegments = computed(() => {
             <VoltammogramChart
               :points="voltammogramPoints"
               :height="340"
+              :method="latest?.method"
               :threshold="latest?.threshold ?? 8"
               :result-status="latest?.status"
             />

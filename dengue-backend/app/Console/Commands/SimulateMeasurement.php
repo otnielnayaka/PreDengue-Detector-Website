@@ -24,7 +24,7 @@ class SimulateMeasurement extends Command
     protected $signature = 'simulate:measurement
         {--device=POT-001 : device_id yang dipakai}
         {--status= : negative|positive|warning (random kalau kosong)}
-        {--method=DPV : DPV|CV|SWV}
+        {--method=DPV : DPV|CV (SWV tidak lagi dipakai untuk data baru)}
         {--points=160 : jumlah titik voltammogram}
         {--count=1 : jumlah measurement yang di-generate}
         {--interval=0 : jeda detik antar measurement}';

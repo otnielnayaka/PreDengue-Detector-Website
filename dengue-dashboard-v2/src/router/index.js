@@ -30,7 +30,7 @@ const router = createRouter({
 
         // Semua role (admin + viewer)
         { path: 'dashboard', name: 'dashboard', component: MonitoringDashboard, meta: { roles: ['admin','viewer'] } },
-        { path: 'result',    name: 'result',    component: ResultDetection,     meta: { roles: ['admin','viewer'] } },
+        { path: 'result/:resultId?', name: 'result', component: ResultDetection, meta: { roles: ['admin','viewer'] } },
         { path: 'data-log',  name: 'data-log',  component: DataLog,             meta: { roles: ['admin','viewer'] } },
         { path: 'map',       name: 'map',       component: MapView,             meta: { roles: ['admin','viewer'] } },
 
