@@ -56,6 +56,8 @@ Route::prefix('v1')->group(function () {
         Route::get ('{measurement}/graph', [MeasurementController::class, 'graph']);
         // store dari dashboard - ADMIN ONLY (alat pakai /start di atas)
         Route::post('/',                   [MeasurementController::class, 'store'])->middleware(['auth:sanctum','role:admin']);
+        // update lokasi measurement (Data Log) - ADMIN ONLY
+        Route::patch('{measurement}/location', [MeasurementController::class, 'updateLocation'])->middleware(['auth:sanctum','role:admin']);
     });
     // ----- Devices -----
     Route::prefix('devices')->group(function () {

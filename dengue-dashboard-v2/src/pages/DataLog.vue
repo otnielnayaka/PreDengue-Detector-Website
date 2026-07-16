@@ -1,5 +1,5 @@
 <script setup>
-import { watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import {
@@ -8,12 +8,37 @@ import {
 } from 'lucide-vue-next'
 
 import StatusBadge from '@/components/ui/StatusBadge.vue'
+import EditLocationModal from '@/components/EditLocationModal.vue'
 import { useMeasurementStore, peakCurrentDisplay as peakCurrentValue } from '@/stores/measurement'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
-const store = useMeasurementStore()
+const store  = useMeasurementStore()
+const auth   = useAuthStore()
 const { list, listTotal, listPage, listPerPage, listLoading, filters } = storeToRefs(store)
 
+// ===== Role check =====
+// Tombol "Edit Location" hanya tampil untuk admin.
+// Penjagaan kedua ada di backend (middleware role:admin).
+const isAdmin = computed(() => auth.isAdmin)
+
+// ===== Edit Location modal state =====
+const editLocOpen        = ref(false)
+const editLocMeasurement = ref(null)
+
+function openEditLocation(m, event) {
+  // Hentikan propagasi supaya klik tombol tidak sekaligus membuka Result
+  event?.stopPropagation()
+  editLocMeasurement.value = m
+  editLocOpen.value = true
+}
+
+function onLocationSaved() {
+  // Refresh list supaya kolom Location langsung diperbarui tanpa reload halaman
+  store.fetchList()
+}
+
+// ===== Filtered methods =====
 // Metode yang boleh muncul di filter untuk pengukuran baru. SWV historis
 // tetap tersimpan di data, tapi tidak lagi ditawarkan sebagai opsi filter.
 const FILTERABLE_METHODS = ['all', 'DPV', 'CV']
@@ -67,12 +92,19 @@ function formatTime(iso) {
   } catch { return '—' }
 }
 
+// Tampilkan nama lokasi paling deskriptif yang tersedia.
+// Prioritas: location_name > kecamatan (fallback lama) > '—'
+function locationDisplay(m) {
+  if (!m.location) return null
+  return m.location.location_name || m.location.kecamatan || null
+}
+
 function exportCsv() {
   if (!list.value.length) return
   const headers = ['date', 'sample_id', 'method', 'peak_current', 'peak_voltage', 'status', 'device', 'location']
   const rows = list.value.map(m => [
     m.created_at, m.sample_id, m.method, m.peak_current, m.peak_voltage, m.status,
-    m.device?.device_id ?? '', m.location?.kecamatan ?? '',
+    m.device?.device_id ?? '', m.location?.location_name ?? m.location?.kecamatan ?? '',
   ])
   const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -164,9 +196,9 @@ function exportCsv() {
                 <span v-else class="text-ink-faint">—</span>
               </td>
               <td class="px-5 py-3.5 text-ink-muted text-xs">
-                <span v-if="m.location" class="inline-flex items-center gap-1">
+                <span v-if="locationDisplay(m)" class="inline-flex items-center gap-1">
                   <MapPin class="h-3 w-3 text-ink-faint" :stroke-width="1.75" />
-                  {{ m.location.kecamatan }}
+                  {{ locationDisplay(m) }}
                 </span>
                 <span v-else class="text-ink-faint">—</span>
               </td>
@@ -176,10 +208,25 @@ function exportCsv() {
               </td>
               <td class="px-5 py-3.5 text-right">
                 <div class="inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click.stop="openResult(m.id)" class="p-1.5 rounded-md hover:bg-surface-muted text-ink-muted hover:text-ink">
+                  <!-- View Result -->
+                  <button @click.stop="openResult(m.id)"
+                          class="p-1.5 rounded-md hover:bg-surface-muted text-ink-muted hover:text-ink"
+                          title="Lihat Result">
                     <Eye class="h-3.5 w-3.5" :stroke-width="1.75" />
                   </button>
-                  <button @click.stop class="p-1.5 rounded-md hover:bg-primary-50 text-ink-muted hover:text-primary-600">
+
+                  <!-- Edit Location — hanya admin -->
+                  <button v-if="isAdmin"
+                          @click="openEditLocation(m, $event)"
+                          class="p-1.5 rounded-md hover:bg-primary-50 text-ink-muted hover:text-primary-600"
+                          title="Edit Lokasi Pengujian">
+                    <MapPin class="h-3.5 w-3.5" :stroke-width="1.75" />
+                  </button>
+
+                  <!-- Delete (placeholder — sama seperti sebelumnya) -->
+                  <button @click.stop
+                          class="p-1.5 rounded-md hover:bg-red-50 text-ink-muted hover:text-red-500"
+                          title="Hapus">
                     <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
                   </button>
                 </div>
@@ -198,6 +245,7 @@ function exportCsv() {
         </table>
       </div>
 
+      <!-- Pagination -->
       <div class="flex items-center justify-between px-5 py-3 border-t border-line bg-white">
         <p class="text-xs text-ink-subtle">
           Showing <span class="font-mono text-ink font-semibold">{{ Math.min((listPage - 1) * listPerPage + 1, listTotal) }}–{{ Math.min(listPage * listPerPage, listTotal) }}</span>
@@ -216,5 +264,12 @@ function exportCsv() {
         </div>
       </div>
     </div>
+
+    <!-- Edit Location Modal — render di luar tabel via Teleport -->
+    <EditLocationModal
+      v-model="editLocOpen"
+      :measurement="editLocMeasurement"
+      @saved="onLocationSaved"
+    />
   </div>
 </template>

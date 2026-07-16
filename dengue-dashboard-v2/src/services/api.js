@@ -104,6 +104,7 @@ export const measurementApi = {
   create:     (payload) => api.post('/measurements', payload),
   activeScan: () => api.get('/measurements/active'),
   live:       (id) => api.get(`/measurements/${id}/live`),
+  updateLocation: (id, payload) => api.patch(`/measurements/${id}/location`, payload),
 }
 
 export const telemetryApi = {

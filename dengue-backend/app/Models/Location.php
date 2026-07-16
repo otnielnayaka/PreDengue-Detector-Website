@@ -15,6 +15,10 @@ class Location extends Model
         'desa',
         'latitude',
         'longitude',
+        'province',
+        'city_regency',
+        'location_name',
+        'notes',
     ];
 
     protected function casts(): array

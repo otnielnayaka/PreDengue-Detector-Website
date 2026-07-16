@@ -264,12 +264,6 @@ const todayBarSegments = computed(() => {
                           :unit="telemetry.battery_voltage ? `(${telemetry.battery_voltage} V)` : ''"
                           :status="batteryStatus" />
             <TelemetryRow label="SD Storage Free" :value="telemetry.free_storage_mb" unit="MB" status="good" />
-            <TelemetryRow label="Temperature" :value="telemetry.temperature_c" unit="°C" />
-            <TelemetryRow label="Humidity"
-                          :value="telemetry.humidity !== null ? telemetry.humidity + '%' : null" />
-            <TelemetryRow label="Current (TIA)" :value="telemetry.current_ua" unit="µA" />
-            <TelemetryRow label="Potential (DAC)" :value="telemetry.potential_v" unit="V" />
-            <TelemetryRow label="Device State" :value="telemetry.state" />
           </div>
         </div>
 
